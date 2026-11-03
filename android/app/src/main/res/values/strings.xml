@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Помощник</string>
+    <string name="title_activity_main">Помощник</string>
+    <string name="package_name">com.evgeny.health</string>
+    <string name="custom_url_scheme">com.evgeny.health</string>
+</resources>

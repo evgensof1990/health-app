@@ -1,0 +1,7 @@
+{
+  "appId": "com.evgeny.health",
+  "appName": "Помощник",
+  "webDir": "dist",
+  "backgroundColor": "#0f1110",
+  "android": { "backgroundColor": "#0f1110" }
+}

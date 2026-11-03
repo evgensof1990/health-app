@@ -1,0 +1,24 @@
+[Unit]
+Description=Health assistant server (nutrition, voice, Claude)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=health
+Group=health
+WorkingDirectory=/opt/health/server
+EnvironmentFile=/etc/health.env
+Environment=TZ=Europe/Moscow
+Environment=DATA_DIR=/var/lib/health
+ExecStart=/usr/bin/env node index.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/health
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

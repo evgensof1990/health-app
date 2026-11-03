@@ -1,0 +1,11 @@
+{
+  "name": "health-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
+    "zod": "^4.0.0"
+  }
+}

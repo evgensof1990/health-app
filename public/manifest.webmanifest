@@ -1,0 +1,9 @@
+{
+  "name": "Помощник: здоровье и развитие",
+  "short_name": "Помощник",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0f1110",
+  "theme_color": "#0f1110",
+  "icons": [{ "src": "icon.png", "sizes": "512x512", "type": "image/png" }]
+}
