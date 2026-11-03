@@ -57,3 +57,29 @@ export function shrinkImage(file, max = 1280) {
     img.src = url;
   });
 }
+
+export const aiTask = async (name, input, photoId) => (await api('POST', '/api/ai/' + name, { input, photoId })).result;
+
+export async function uploadPhoto(base64) {
+  const bin = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  return (await api('POST', '/api/photos', bin, { raw: true })).id;
+}
+
+// <img> cannot send the access key, so photos are fetched as blobs and cached per session
+const photoCache = new Map();
+export function photoUrl(id) {
+  if (!photoCache.has(id)) {
+    const cfg = getCfg();
+    photoCache.set(
+      id,
+      fetch(cfg.url.replace(/\/$/, '') + '/api/photos/' + id, { headers: { Authorization: 'Bearer ' + cfg.key } })
+        .then((r) => (r.ok ? r.blob() : Promise.reject(new Error('Фото не загрузилось'))))
+        .then((b) => URL.createObjectURL(b))
+        .catch((e) => {
+          photoCache.delete(id);
+          throw e;
+        })
+    );
+  }
+  return photoCache.get(id);
+}

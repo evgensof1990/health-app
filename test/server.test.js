@@ -94,3 +94,54 @@ test('voice without SpeechKit key says so', async () => {
   assert.equal(s, 409);
   assert.match(r.error, /SPEECHKIT/);
 });
+
+test('sections are saved whole and filled with defaults', async () => {
+  const [s, r] = await call('PUT', '/api/sections/growth', { books: [{ id: 'b1', title: 'Марсианин', author: 'Энди Вейер', status: 'reading' }] });
+  assert.equal(s, 200);
+  assert.deepEqual(r.growth.wins, undefined);
+  assert.deepEqual(r.growth.habitLog, {});
+  const [, st] = await call('GET', '/api/state');
+  assert.equal(st.sections.growth.books[0].title, 'Марсианин');
+  assert.deepEqual(st.sections.self.wins, []);
+  const [s2] = await call('PUT', '/api/sections/nope', {});
+  assert.equal(s2, 404);
+  const [s3] = await call('PUT', '/api/sections/self', [1, 2]);
+  assert.equal(s3, 400);
+});
+
+test('section AI tasks get stored context', async () => {
+  const [s, r] = await call('POST', '/api/ai/books', { input: { wish: 'психология' } });
+  assert.equal(s, 200);
+  assert.ok(r.result.books.length >= 2);
+  const prompt = fake.calls.at(-1).body.messages[0].content.at(-1).text;
+  assert.match(prompt, /Марсианин/);
+  assert.match(prompt, /психология/);
+  const [, w] = await call('POST', '/api/ai/wheel', { input: { scores: { Здоровье: 6, Работа: 8 } } });
+  assert.equal(w.result.steps.length, 2);
+  const [, j] = await call('POST', '/api/ai/jokeReview', { input: { situation: 'x', technique: 'y', answer: 'z' } });
+  assert.equal(j.result.score, 7);
+  const [s4] = await call('POST', '/api/ai/toString', {});
+  assert.equal(s4, 404);
+});
+
+test('photos: upload, analyse, fetch, delete', async () => {
+  const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(200, 1)]);
+  const up = await fetch(`http://127.0.0.1:${PORT}/api/photos`, { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/octet-stream' }, body: jpeg });
+  const { id } = await up.json();
+  assert.match(id, /^[\w-]{36}$/);
+  const [s, r] = await call('POST', '/api/ai/styleItem', { input: {}, photoId: id });
+  assert.equal(s, 200);
+  assert.ok(r.result.name);
+  const img = fake.calls.at(-1).body.messages[0].content[0];
+  assert.equal(img.type, 'image');
+  const got = await fetch(`http://127.0.0.1:${PORT}/api/photos/${id}`, { headers: { Authorization: 'Bearer ' + TOKEN } });
+  assert.equal(got.headers.get('content-type'), 'image/jpeg');
+  assert.equal(Buffer.from(await got.arrayBuffer()).length, jpeg.length);
+  const [s2] = await call('POST', '/api/ai/styleItem', { input: {} });
+  assert.equal(s2, 400);
+  await call('DELETE', '/api/photos/' + id);
+  const gone = await fetch(`http://127.0.0.1:${PORT}/api/photos/${id}`, { headers: { Authorization: 'Bearer ' + TOKEN } });
+  assert.equal(gone.status, 404);
+  const bad = await fetch(`http://127.0.0.1:${PORT}/api/photos/..%2F..%2Fhealth`, { headers: { Authorization: 'Bearer ' + TOKEN } });
+  assert.equal(bad.status, 404);
+});

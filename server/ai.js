@@ -6,6 +6,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
 import { dayKey, mealsOn, totals, shiftDay } from '../shared/nutrition.js';
+import { TASKS } from './tasks.js';
 
 const MODEL = process.env.AI_MODEL || 'claude-opus-5-5';
 const EFFORT = process.env.AI_EFFORT || 'medium';
@@ -104,6 +105,28 @@ export class Nutritionist {
       system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content }],
     });
+    return this.check(res);
+  }
+
+  // One of the section tasks (see tasks.js). image: { data: base64, mediaType } for photo tasks.
+  async task(name, { input, state, image }) {
+    const t = TASKS[name];
+    const content = [];
+    if (image) content.push({ type: 'image', source: { type: 'base64', media_type: image.mediaType || 'image/jpeg', data: image.data } });
+    content.push({ type: 'text', text: t.prompt(input || {}, state) });
+    const res = await this.client.beta.messages.parse({
+      model: MODEL,
+      max_tokens: 16000,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      output_config: { effort: EFFORT, format: betaZodOutputFormat(t.schema) },
+      system: [{ type: 'text', text: t.system, cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content }],
+    });
+    return this.check(res);
+  }
+
+  check(res) {
     if (res.stop_reason === 'refusal') throw Object.assign(new Error('ИИ отказался отвечать на это сообщение. Попробуй переформулировать.'), { status: 422 });
     if (res.stop_reason === 'max_tokens' || !res.parsed_output) throw Object.assign(new Error('ИИ ответил неполностью, попробуй ещё раз'), { status: 502 });
     return res.parsed_output;

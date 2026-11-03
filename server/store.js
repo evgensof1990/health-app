@@ -2,14 +2,19 @@
 // The server is the source of truth: the app and the Telegram bot both read and write here.
 import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { unlinkSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { emptySections, withSectionDefaults, SECTIONS } from '../shared/sections.js';
 
 export const emptyState = () => ({
   profile: null, // { sex, age, height, weight, goalWeight, activity, pace, notes, targets }
   meals: [], // { id, at, text, source, title, items, kcal, protein, fat, carbs, verdict, comment, tip }
   weights: [], // { id, date: 'YYYY-MM-DD', kg }
   asks: [], // { id, at, q, a }
+  sections: emptySections(),
 });
+
+export { SECTIONS };
 
 const MAX_ASKS = 100;
 
@@ -19,6 +24,33 @@ export class Store {
     mkdirSync(dir, { recursive: true });
     this.file = join(dir, 'health.json');
     this.data = existsSync(this.file) ? { ...emptyState(), ...JSON.parse(readFileSync(this.file, 'utf8')) } : emptyState();
+    this.data.sections = withSectionDefaults(this.data.sections);
+    this.photoDir = join(dir, 'photos');
+    mkdirSync(this.photoDir, { recursive: true });
+  }
+
+  setSection(name, value) {
+    this.data.sections[name] = { ...emptySections()[name], ...value };
+    this.save();
+    return this.data.sections[name];
+  }
+
+  // photos are stored as files, records keep only the id
+  savePhoto(buf) {
+    const id = randomUUID();
+    writeFileSync(join(this.photoDir, id + '.jpg'), buf);
+    return id;
+  }
+
+  photoPath(id) {
+    if (!/^[\w-]{36}$/.test(id)) return null;
+    const p = join(this.photoDir, id + '.jpg');
+    return existsSync(p) ? p : null;
+  }
+
+  deletePhoto(id) {
+    const p = this.photoPath(id);
+    if (p) unlinkSync(p);
   }
 
   save() {
