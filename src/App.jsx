@@ -3,8 +3,11 @@ import { api, getCfg } from './api.js';
 import { FoodScreen } from './food.jsx';
 import { ProfileForm } from './profile.jsx';
 import { Settings } from './settings.jsx';
-import { Soon } from './soon.jsx';
+import { GrowthScreen } from './growth.jsx';
+import { SelfScreen } from './self.jsx';
+import { StyleScreen } from './style.jsx';
 import { Icon } from './icons.jsx';
+import { withSectionDefaults } from '../shared/sections.js';
 
 const TABS = [
   { id: 'food', label: 'Питание', icon: 'food' },
@@ -14,6 +17,7 @@ const TABS = [
 ];
 
 const CACHE = 'health-cache';
+const withSections = (d) => d && { ...d, sections: withSectionDefaults(d.sections) };
 const readCache = () => {
   try {
     return JSON.parse(localStorage.getItem(CACHE)) || null;
@@ -31,7 +35,7 @@ const writeCache = (d) => {
 
 export default function App() {
   const [tab, setTab] = useState(() => localStorage.getItem('health-tab') || 'food');
-  const [data, setDataRaw] = useState(readCache);
+  const [data, setDataRaw] = useState(() => withSections(readCache()));
   const [cfg, setCfgState] = useState(getCfg);
   const [screen, setScreen] = useState(null); // 'settings' | 'profile'
   const [error, setError] = useState(null);
@@ -47,7 +51,7 @@ export default function App() {
   const refresh = useCallback(async () => {
     if (!getCfg()?.key) return;
     try {
-      setData(await api('GET', '/api/state'));
+      setData(withSections(await api('GET', '/api/state')));
       setError(null);
     } catch (e) {
       setError(e.message);
@@ -102,7 +106,9 @@ export default function App() {
       <main className="main">
         {!data && <div className="center muted">{error || 'Загружаю…'}</div>}
         {data && tab === 'food' && <FoodScreen data={data} setData={setData} refresh={refresh} offlineError={error} onSettings={() => setScreen('settings')} onProfile={() => setScreen('profile')} />}
-        {data && tab !== 'food' && <Soon tab={tab} />}
+        {data && tab === 'growth' && <GrowthScreen data={data} setData={setData} />}
+        {data && tab === 'self' && <SelfScreen data={data} setData={setData} />}
+        {data && tab === 'style' && <StyleScreen data={data} setData={setData} />}
       </main>
       <nav className="tabbar">
         {TABS.map((t) => (

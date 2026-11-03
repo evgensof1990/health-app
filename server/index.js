@@ -4,7 +4,9 @@
 import { createServer } from 'node:http';
 import Anthropic from '@anthropic-ai/sdk';
 import { timingSafeEqual } from 'node:crypto';
-import { Store } from './store.js';
+import { readFileSync } from 'node:fs';
+import { Store, SECTIONS } from './store.js';
+import { TASKS } from './tasks.js';
 import { Nutritionist } from './ai.js';
 import { applyReply, mealFromReply } from './apply.js';
 import { speechKit } from './speechkit.js';
@@ -47,7 +49,11 @@ async function readRaw(req, limit) {
 const readJson = async (req, limit = 8e6) => JSON.parse((await readRaw(req, limit)).toString('utf8') || '{}');
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
 
-const send = (res, status, body) => {
+const send = (res, status, body, type) => {
+  if (type) {
+    res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'private, max-age=31536000, immutable' });
+    return res.end(body);
+  }
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(body));
 };
@@ -165,6 +171,60 @@ const routes = [
   ],
 ];
 
+routes.push(
+  [
+    'PUT',
+    new RegExp(`^/api/sections/(${SECTIONS.join('|')})$`),
+    async (req, url, [name]) => {
+      const body = await readJson(req, 3e6);
+      if (!body || typeof body !== 'object' || Array.isArray(body)) throw bad('Ожидается объект раздела');
+      return [200, { [name]: store.setSection(name, body) }];
+    },
+  ],
+  [
+    'POST',
+    /^\/api\/photos$/,
+    async (req) => {
+      const buf = await readRaw(req, 5e6);
+      if (buf.length < 100 || buf[0] !== 0xff || buf[1] !== 0xd8) throw bad('Ожидается фото в формате JPEG');
+      return [200, { id: store.savePhoto(buf) }];
+    },
+  ],
+  [
+    'GET',
+    /^\/api\/photos\/([\w-]+)$/,
+    (req, url, [id]) => {
+      const p = store.photoPath(id);
+      if (!p) throw bad('Фото не найдено', 404);
+      return [200, readFileSync(p), 'image/jpeg'];
+    },
+  ],
+  [
+    'DELETE',
+    /^\/api\/photos\/([\w-]+)$/,
+    (req, url, [id]) => {
+      store.deletePhoto(id);
+      return [200, { ok: true }];
+    },
+  ],
+  [
+    'POST',
+    /^\/api\/ai\/(\w+)$/,
+    async (req, url, [name]) => {
+      if (!Object.hasOwn(TASKS, name)) throw bad('Неизвестная задача', 404);
+      needAi();
+      const b = await readJson(req, 1e6);
+      let image = null;
+      if (TASKS[name].image) {
+        const p = b.photoId && store.photoPath(String(b.photoId));
+        if (!p) throw bad('Нужно фото');
+        image = { data: readFileSync(p).toString('base64'), mediaType: 'image/jpeg' };
+      }
+      return [200, { result: await ai.task(name, { input: b.input || {}, state: store.data, image }) }];
+    },
+  ]
+);
+
 const server = createServer(async (req, res) => {
   const origin = req.headers.origin;
   if (origin && ORIGINS.includes(origin)) {
@@ -190,8 +250,8 @@ const server = createServer(async (req, res) => {
   if (!hit) return send(res, 404, { error: 'Не найдено' });
   if (url.pathname !== '/api/health' && !authorized(req)) return send(res, 401, { error: 'Нужен ключ доступа' });
   try {
-    const [status, body] = await hit[0](req, url, hit[1]);
-    send(res, status, body);
+    const [status, body, type] = await hit[0](req, url, hit[1]);
+    send(res, status, body, type);
   } catch (e) {
     if (e instanceof Anthropic.APIConnectionError) return send(res, 502, { error: 'Нет связи с ИИ, попробуй ещё раз' });
     if (e instanceof Anthropic.RateLimitError) return send(res, 503, { error: 'ИИ перегружен, попробуй через минуту' });
