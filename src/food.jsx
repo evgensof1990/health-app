@@ -401,7 +401,9 @@ function WeightCard({ weights, profile, setData, day }) {
 function Spark({ points, goal }) {
   const w = 300;
   const h = 70;
-  const vals = points.flatMap((p) => [p.kg, p.avg]).concat(goal ? [goal] : []);
+  const data = points.flatMap((p) => [p.kg, p.avg]);
+  // show the goal line only when it is close enough not to flatten the chart
+  const vals = goal && goal > Math.min(...data) - 2 ? data.concat([goal]) : data;
   const lo = Math.min(...vals) - 0.5;
   const hi = Math.max(...vals) + 0.5;
   const x = (i) => (i / (points.length - 1)) * (w - 8) + 4;

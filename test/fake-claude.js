@@ -41,6 +41,7 @@ export function startFakeClaude(port = 0, { secret = 'test-proxy-secret-123' } =
     calls.push({ headers: req.headers, body: j });
     const userText = j.messages[0].content.find((c) => c.type === 'text').text.split('<message>')[1] || '';
     const out = cannedReply(userText);
+    if (process.env.FAKE_DELAY) await new Promise((r) => setTimeout(r, +process.env.FAKE_DELAY));
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(
       JSON.stringify({
