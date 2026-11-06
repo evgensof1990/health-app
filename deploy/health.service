@@ -1,5 +1,5 @@
 [Unit]
-Description=Health assistant server (nutrition, voice, Claude)
+Description=Health assistant server (nutrition, voice, AI)
 After=network-online.target
 Wants=network-online.target
 

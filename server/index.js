@@ -1,5 +1,5 @@
 // Health assistant server: stores the user's data, recognises voice (Yandex SpeechKit)
-// and asks Claude to understand meals and questions. Configuration via environment variables
+// and asks the AI (Yandex AI Studio or Claude, see backends.js) to understand meals and questions. Configuration via environment variables
 // (see README.md).
 import { createServer } from 'node:http';
 import Anthropic from '@anthropic-ai/sdk';
@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { Store, SECTIONS } from './store.js';
 import { TASKS } from './tasks.js';
 import { Nutritionist } from './ai.js';
+import { backendFromEnv } from './backends.js';
 import { applyReply, mealFromReply } from './apply.js';
 import { speechKit } from './speechkit.js';
 import { calcTargets, dayKey } from '../shared/nutrition.js';
@@ -27,7 +28,8 @@ if (TOKEN.length < 16) {
 
 const store = new Store(env.DATA_DIR || './data');
 const stt = env.SPEECHKIT_API_KEY ? speechKit(env.SPEECHKIT_API_KEY) : null;
-const ai = env.AI_PROXY_SECRET || env.ANTHROPIC_API_KEY ? new Nutritionist({ apiKey: env.AI_PROXY_SECRET || env.ANTHROPIC_API_KEY, baseURL: env.AI_PROXY_URL }) : null;
+const picked = backendFromEnv(env);
+const ai = picked ? new Nutritionist(picked.backend) : null;
 
 const same = (a, b) => {
   const got = Buffer.from(a || '');
@@ -59,7 +61,7 @@ const send = (res, status, body, type) => {
 };
 
 const needAi = () => {
-  if (!ai) throw bad('ИИ не настроен на сервере: нужен AI_PROXY_URL и AI_PROXY_SECRET', 409);
+  if (!ai) throw bad('ИИ не настроен на сервере: нужны YANDEX_API_KEY и YANDEX_FOLDER_ID в /etc/health.env', 409);
 };
 
 function cleanProfile(b) {
@@ -83,7 +85,7 @@ function cleanProfile(b) {
 }
 
 const routes = [
-  ['GET', /^\/api\/health$/, () => [200, { ok: true, ai: !!ai, voice: !!stt }]],
+  ['GET', /^\/api\/health$/, () => [200, { ok: true, ai: !!ai, provider: picked?.name || null, voice: !!stt }]],
   ['GET', /^\/api\/state$/, () => [200, store.data]],
 
   [
@@ -255,7 +257,7 @@ const server = createServer(async (req, res) => {
   } catch (e) {
     if (e instanceof Anthropic.APIConnectionError) return send(res, 502, { error: 'Нет связи с ИИ, попробуй ещё раз' });
     if (e instanceof Anthropic.RateLimitError) return send(res, 503, { error: 'ИИ перегружен, попробуй через минуту' });
-    if (e instanceof Anthropic.AuthenticationError) return send(res, 502, { error: 'Сервер не смог авторизоваться в ИИ: проверь ключ в воркере' });
+    if (e instanceof Anthropic.AuthenticationError) return send(res, 502, { error: 'Сервер не смог авторизоваться в Claude: проверь ключ в воркере' });
     if (e instanceof Anthropic.APIError) {
       console.error('Claude API', e.status, e.message);
       return send(res, 502, { error: 'ИИ вернул ошибку ' + e.status });
@@ -266,5 +268,5 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`Помощник слушает http://${HOST}:${PORT}; ИИ ${ai ? 'подключён' : 'не настроен'}, голос ${stt ? 'включён' : 'выключен'}`);
+  console.log(`Помощник слушает http://${HOST}:${PORT}; ИИ: ${picked ? picked.name : 'не настроен'}, голос ${stt ? 'включён' : 'выключен'}`);
 });

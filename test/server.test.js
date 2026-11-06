@@ -18,7 +18,7 @@ before(async () => {
   fake = await startFakeClaude(0);
   proc = spawn(process.execPath, ['index.js'], {
     cwd: new URL('../server/', import.meta.url),
-    env: { PATH: process.env.PATH, TZ: 'Europe/Moscow', PORT: String(PORT), HEALTH_TOKEN: TOKEN, DATA_DIR: mkdtempSync(join(tmpdir(), 'health-')), AI_PROXY_URL: fake.url, AI_PROXY_SECRET: 'test-proxy-secret-123' },
+    env: { PATH: process.env.PATH, TZ: 'Europe/Moscow', PORT: String(PORT), HEALTH_TOKEN: TOKEN, DATA_DIR: mkdtempSync(join(tmpdir(), 'health-')), YANDEX_API_KEY: 'test-yandex-key', YANDEX_FOLDER_ID: 'b1gtestfolder', YANDEX_AI_URL: fake.url + '/v1' },
     stdio: 'pipe',
   });
   await new Promise((res) => proc.stdout.once('data', res));
@@ -48,10 +48,10 @@ test('a spoken meal becomes a stored meal with totals', async () => {
   assert.equal(r.meal.kcal, 198 + 245 + 35);
   assert.equal(r.meal.verdict, 'great');
   const req = fake.calls.at(-1);
-  assert.equal(req.body.model, 'claude-opus-5-5');
-  assert.equal(req.body.fallbacks, 'default');
-  assert.match(req.headers['anthropic-beta'], /server-side-fallback-2026-07-01/);
-  assert.match(req.body.messages[0].content.at(-1).text, /Норма на день/);
+  assert.equal(req.body.model, 'gpt://b1gtestfolder/aliceai-llm');
+  assert.equal(req.headers['openai-project'], 'b1gtestfolder');
+  assert.match(req.system, /JSON-схеме/);
+  assert.match(req.prompt, /Норма на день/);
 });
 
 test('"на завтрак" moves the meal back in time', async () => {
@@ -63,7 +63,7 @@ test('a question is answered and kept', async () => {
   const [, r] = await call('POST', '/api/input', { text: 'хочу съесть копчёную куриную ножку, это ок?' });
   assert.equal(r.kind, 'question');
   assert.match(r.ask.a, /ножку/);
-  const ctx = fake.calls.at(-1).body.messages[0].content.at(-1).text;
+  const ctx = fake.calls.at(-1).prompt;
   assert.match(ctx, /Уже съедено сегодня/);
 });
 
@@ -113,7 +113,7 @@ test('section AI tasks get stored context', async () => {
   const [s, r] = await call('POST', '/api/ai/books', { input: { wish: 'психология' } });
   assert.equal(s, 200);
   assert.ok(r.result.books.length >= 2);
-  const prompt = fake.calls.at(-1).body.messages[0].content.at(-1).text;
+  const prompt = fake.calls.at(-1).prompt;
   assert.match(prompt, /Марсианин/);
   assert.match(prompt, /психология/);
   const [, w] = await call('POST', '/api/ai/wheel', { input: { scores: { Здоровье: 6, Работа: 8 } } });
@@ -132,8 +132,9 @@ test('photos: upload, analyse, fetch, delete', async () => {
   const [s, r] = await call('POST', '/api/ai/styleItem', { input: {}, photoId: id });
   assert.equal(s, 200);
   assert.ok(r.result.name);
-  const img = fake.calls.at(-1).body.messages[0].content[0];
-  assert.equal(img.type, 'image');
+  const last = fake.calls.at(-1);
+  assert.equal(last.body.model, 'gpt://b1gtestfolder/qwen3.6-35b-a3b');
+  assert.match(last.image.image_url.url, /^data:image\/jpeg;base64,/);
   const got = await fetch(`http://127.0.0.1:${PORT}/api/photos/${id}`, { headers: { Authorization: 'Bearer ' + TOKEN } });
   assert.equal(got.headers.get('content-type'), 'image/jpeg');
   assert.equal(Buffer.from(await got.arrayBuffer()).length, jpeg.length);

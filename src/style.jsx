@@ -64,7 +64,7 @@ function Guide({ st, update, goShop }) {
   if (editing) {
     return (
       <>
-        <div className="muted small mb">Ответь на пять вопросов, и Claude соберёт личный гайд: цвета, базовую капсулу, правила посадки и что купить в первую очередь.</div>
+        <div className="muted small mb">Ответь на пять вопросов, и ИИ соберёт личный гайд: цвета, базовую капсулу, правила посадки и что купить в первую очередь.</div>
         <div className="field">
           <span>Телосложение</span>
           <div className="chips">
@@ -248,7 +248,7 @@ function Wardrobe({ st, update }) {
   return (
     <>
       <div className="card">
-        <div className="muted small">Сфотографируй вещь на однотонном фоне или на себе. Claude определит, что это, и скажет: оставить, носить с оговорками или заменить.</div>
+        <div className="muted small">Сфотографируй вещь на однотонном фоне или на себе. ИИ определит, что это, и скажет: оставить, носить с оговорками или заменить.</div>
         <input className="inp mt" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Комментарий к фото (необязательно): «ношу 5 лет», «куплена на распродаже»" />
         <button className="btn primary full mt" onClick={() => fileRef.current?.click()} disabled={busy}>
           <Icon name="camera" size={18} /> {busy ? 'Смотрю вещь…' : 'Добавить вещь'}
@@ -316,7 +316,7 @@ function Look({ st, update }) {
         </button>
         <Err>{error}</Err>
       </div>
-      {busy && <Busy text="Claude перебирает гардероб" />}
+      {busy && <Busy text="Перебираю гардероб" />}
       {list.map((l) => (
         <div key={l.id} className="lookset">
           <div className="dayhead">
