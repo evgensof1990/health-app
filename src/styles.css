@@ -364,6 +364,7 @@ code {
 .ask .a {
   font-size: 14px;
   color: #c9cecc;
+  white-space: pre-wrap;
 }
 .pending {
   display: flex;

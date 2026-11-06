@@ -336,7 +336,7 @@ function PendingCard({ p, onRetry, onDrop }) {
       {p.image?.preview && <img src={p.image.preview} alt="" className="thumb" />}
       <div className="ptext">
         {p.text ? `«${p.text}»` : p.status === 'voice' ? 'Распознаю голос…' : ''}
-        <div className="muted small">{p.status === 'thinking' ? 'Считаю калории…' : p.status === 'error' ? p.error : ''}</div>
+        <div className="muted small">{p.status === 'thinking' ? 'Думаю…' : p.status === 'error' ? p.error : ''}</div>
       </div>
       {p.status === 'error' ? (
         <div className="pact">
