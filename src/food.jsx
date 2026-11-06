@@ -65,7 +65,7 @@ export function FoodScreen({ data, setData, refresh, offlineError, onSettings, o
     send(item);
   };
 
-  // voice: the recording is turned into text first, so the transcript shows up while Claude thinks
+  // voice: the recording is turned into text first, so the transcript shows up while the AI thinks
   const submitVoice = async (pcm) => {
     const item = { id: uid(), text: '', at: atFor(day), source: 'voice', status: 'voice' };
     setPending((l) => [...l, item]);

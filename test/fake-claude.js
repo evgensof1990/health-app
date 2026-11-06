@@ -71,22 +71,43 @@ export function taskReply(system, text) {
   return null;
 }
 
-export function startFakeClaude(port = 0, { secret = 'test-proxy-secret-123' } = {}) {
+// Serves both the Claude Messages API (/v1/messages) and the OpenAI-compatible Yandex AI Studio
+// API (/v1/chat/completions). Each recorded call has { path, headers, body, system, prompt, image }.
+export function startFakeClaude(port = 0, { secret = 'test-proxy-secret-123', yandexKey = 'test-yandex-key', badJsonOnce = false } = {}) {
   const calls = [];
+  let spoilNext = badJsonOnce;
   const srv = createServer(async (req, res) => {
     let body = '';
     for await (const c of req) body += c;
-    const got = req.headers['x-api-key'] || (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-    if (got !== secret) {
+    const yandex = req.url.endsWith('/chat/completions');
+    const auth = req.headers.authorization || '';
+    const ok = yandex ? auth === 'Api-Key ' + yandexKey : (req.headers['x-api-key'] || auth.replace(/^Bearer\s+/i, '')) === secret;
+    if (!ok) {
       res.writeHead(401, { 'content-type': 'application/json' });
       return res.end(JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'bad key' } }));
     }
     const j = JSON.parse(body);
-    calls.push({ headers: req.headers, body: j });
-    const fullText = j.messages[0].content.find((c) => c.type === 'text').text;
-    const out = taskReply(j.system?.[0]?.text || '', fullText) || cannedReply(fullText.split('<message>')[1] || '');
+    let system, prompt, image;
+    if (yandex) {
+      system = j.messages[0].content;
+      const u = j.messages[1].content;
+      prompt = typeof u === 'string' ? u : u.find((c) => c.type === 'text').text;
+      image = typeof u === 'string' ? null : u.find((c) => c.type === 'image_url') || null;
+    } else {
+      system = j.system?.[0]?.text || '';
+      prompt = j.messages[0].content.find((c) => c.type === 'text').text;
+      image = j.messages[0].content.find((c) => c.type === 'image') || null;
+    }
+    calls.push({ path: req.url, headers: req.headers, body: j, system, prompt, image });
+    const out = taskReply(system, prompt) || cannedReply(prompt.split('<message>')[1] || '');
     if (process.env.FAKE_DELAY) await new Promise((r) => setTimeout(r, +process.env.FAKE_DELAY));
     res.writeHead(200, { 'content-type': 'application/json' });
+    if (yandex) {
+      // the first answer can be spoiled to exercise the retry; normal answers come wrapped in a code fence
+      const text = spoilNext ? '{"kind": "meal", ' : '```json\n' + JSON.stringify(out) + '\n```';
+      spoilNext = false;
+      return res.end(JSON.stringify({ id: 'chatcmpl-fake', object: 'chat.completion', model: j.model, choices: [{ index: 0, message: { role: 'assistant', content: text }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 10 } }));
+    }
     res.end(
       JSON.stringify({
         id: 'msg_fake',
@@ -104,5 +125,5 @@ export function startFakeClaude(port = 0, { secret = 'test-proxy-secret-123' } =
 }
 
 if (process.argv[1] && process.argv[1].endsWith('fake-claude.js')) {
-  startFakeClaude(+process.argv[2] || 3399).then(({ url }) => console.log('fake Claude at', url));
+  startFakeClaude(+process.argv[2] || 3399).then(({ url }) => console.log('fake AI at', url, '(Claude: /v1/messages, Yandex: /v1/chat/completions)'));
 }

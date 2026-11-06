@@ -159,7 +159,7 @@ function Books({ g, update }) {
         </button>
         <Err>{error}</Err>
       </div>
-      {busy && <Busy text="Claude подбирает книги под тебя" />}
+      {busy && <Busy text="Подбираю книги под тебя" />}
       {(recs || STARTER_BOOKS).map((b) => (
         <div className="card book" key={b.title}>
           <div className="row top">

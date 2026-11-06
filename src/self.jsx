@@ -161,7 +161,7 @@ function Thoughts({ s, update }) {
         </button>
         <Err>{error}</Err>
       </div>
-      {busy && <Busy text="Claude разбирает мысль" />}
+      {busy && <Busy text="Разбираю мысль" />}
       {list.map((r) => (
         <div key={r.id} className="card reframe">
           <div className="q">«{r.thought}»</div>
@@ -235,7 +235,7 @@ function Humor({ s, update }) {
       ) : (
         <div className="card">
           <div className="btitle">Тренажёр остроумия</div>
-          <div className="muted small mt4">Получаешь жизненную ситуацию и пробуешь ответить смешно. Claude оценит, покажет, как усилить твою шутку, и даст пару вариантов. 5 минут в день, и через месяц шутки начнут приходить в голову сами.</div>
+          <div className="muted small mt4">Получаешь жизненную ситуацию и пробуешь ответить смешно. ИИ оценит, покажет, как усилить твою шутку, и даст пару вариантов. 5 минут в день, и через месяц шутки начнут приходить в голову сами.</div>
           <div className="muted small mt">Техника</div>
           <div className="chips">
             <button className={'chip' + (!technique ? ' on' : '')} onClick={() => setTechnique('')}>

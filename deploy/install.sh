@@ -36,35 +36,48 @@ chown -R health:health /var/lib/health
 chmod 700 /var/lib/health
 
 # 3. Secrets: asked here, never typed into a chat
+ask_yandex() {
+  echo
+  echo "ИИ работает через Yandex AI Studio. Нужны идентификатор каталога и API-ключ сервисного аккаунта"
+  echo "с ролью ai.languageModels.user (инструкция в README, раздел «Ключ Yandex AI Studio»)."
+  read -rp "Идентификатор каталога Yandex Cloud (вида b1g…): " YFOLDER
+  read -rsp "API-ключ для AI Studio (Enter — попробовать ключ SpeechKit): " YKEY; echo
+  [ -n "$YKEY" ] || YKEY="$SPEECH"
+}
+
+SPEECH=""
+if [ -f "$ENV_FILE" ]; then
+  SPEECH="$(grep '^SPEECHKIT_API_KEY=' "$ENV_FILE" | cut -d= -f2- || true)"
+elif [ -f /etc/planovik.env ] && grep -q '^SPEECHKIT_API_KEY=.' /etc/planovik.env; then
+  SPEECH="$(grep '^SPEECHKIT_API_KEY=' /etc/planovik.env | cut -d= -f2-)"
+  echo "Ключ SpeechKit взят из настроек планнера."
+fi
+
 if [ ! -f "$ENV_FILE" ]; then
   TOKEN="$(openssl rand -hex 24)"
-  PROXY_SECRET="$(openssl rand -hex 24)"
-  echo
-  read -rp "Адрес Cloudflare-воркера для Claude (например, https://claude-proxy.xxx.workers.dev): " PROXY_URL
-  SPEECH=""
-  if [ -f /etc/planovik.env ] && grep -q '^SPEECHKIT_API_KEY=.' /etc/planovik.env; then
-    SPEECH="$(grep '^SPEECHKIT_API_KEY=' /etc/planovik.env | cut -d= -f2-)"
-    echo "Ключ SpeechKit взят из настроек планнера."
-  else
-    read -rsp "API-ключ Yandex SpeechKit для голоса (Enter — пропустить): " SPEECH; echo
-  fi
+  [ -n "$SPEECH" ] || { read -rsp "API-ключ Yandex SpeechKit для голоса (Enter — пропустить): " SPEECH; echo; }
+  ask_yandex
   umask 077
   cat > "$ENV_FILE" <<EOV
 HEALTH_TOKEN=$TOKEN
-AI_PROXY_URL=$PROXY_URL
-AI_PROXY_SECRET=$PROXY_SECRET
+YANDEX_FOLDER_ID=$YFOLDER
+YANDEX_API_KEY=$YKEY
 SPEECHKIT_API_KEY=$SPEECH
 PORT=3310
 ALLOWED_ORIGINS=https://$DOMAIN,https://localhost,capacitor://localhost,http://localhost:5173
 EOV
   chmod 600 "$ENV_FILE"
   echo
-  echo "1) Секрет для воркера (переменная PROXY_SECRET в Cloudflare):"
-  echo "   $PROXY_SECRET"
-  echo "2) Ключ доступа для приложения (Настройки → Ключ доступа):"
+  echo "Ключ доступа для приложения (Настройки → Ключ доступа):"
   echo "   $TOKEN"
   echo "Посмотреть позже: sudo cat $ENV_FILE"
   echo
+elif ! grep -q '^YANDEX_API_KEY=.' "$ENV_FILE"; then
+  # an older install that used Claude: add Yandex AI Studio, keep the rest
+  ask_yandex
+  sed -i '/^YANDEX_FOLDER_ID=/d;/^YANDEX_API_KEY=/d;/^AI_PROVIDER=/d' "$ENV_FILE"
+  printf 'YANDEX_FOLDER_ID=%s\nYANDEX_API_KEY=%s\n' "$YFOLDER" "$YKEY" >> "$ENV_FILE"
+  echo "Ключ AI Studio добавлен в $ENV_FILE."
 fi
 
 # 4. Service
@@ -90,3 +103,4 @@ fi
 sleep 2
 systemctl --no-pager --lines=5 status health || true
 curl -fsS "http://127.0.0.1:3310/api/health" && echo " — сервер отвечает"
+echo "Проверить ИИ: sudo journalctl -u health -n 20  (при ошибке ключа там будет подсказка)"
