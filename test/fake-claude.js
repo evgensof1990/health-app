@@ -99,7 +99,7 @@ export function startFakeClaude(port = 0, { secret = 'test-proxy-secret-123', ya
       image = j.messages[0].content.find((c) => c.type === 'image') || null;
     }
     calls.push({ path: req.url, headers: req.headers, body: j, system, prompt, image });
-    const out = taskReply(system, prompt) || cannedReply(prompt.split('<message>')[1] || '');
+    const out = taskReply(system, prompt) || (prompt.includes('не отчёт о съеденном') ? { kind: 'question', meal: null, weight_kg: null, answer: 'Сырники на 2 порции:\n• творог 5% — 400 г\n• яйцо — 1 шт.\n• мука — 2 ст. л.\nОколо 320 ккал на порцию.' } : cannedReply(prompt.split('<message>')[1] || ''));
     if (process.env.FAKE_DELAY) await new Promise((r) => setTimeout(r, +process.env.FAKE_DELAY));
     res.writeHead(200, { 'content-type': 'application/json' });
     if (yandex) {
